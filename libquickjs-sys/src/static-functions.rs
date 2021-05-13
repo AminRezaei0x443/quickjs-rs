@@ -26,6 +26,9 @@ extern "C" {
     fn JS_SetProperty_real(ctx: *mut JSContext, this_obj: JSValue, prop: JSAtom, val: JSValue) -> ::std::os::raw::c_int;
     fn JS_NewCFunction_real(ctx: *mut JSContext, func: *mut JSCFunction, name: *const ::std::os::raw::c_char,length: ::std::os::raw::c_int) -> JSValue;
     fn JS_NewCFunctionMagic_real(ctx: *mut JSContext, func: *mut JSCFunctionMagic, name: *const ::std::os::raw::c_char, length: ::std::os::raw::c_int, cproto: JSCFunctionEnum, magic: ::std::os::raw::c_int) -> JSValue;
+    fn JS_NewFunctionEntry(ctx: *const ::std::os::raw::c_char, argc: u8, func: *mut JSCFunction) -> JSCFunctionListEntry;
+    fn JS_AllocFnList_real(first: JSCFunctionListEntry) -> *mut JSCFunctionListEntry;
+    fn JS_AppendFnList_real(buffer: *mut JSCFunctionListEntry, item: JSCFunctionListEntry);
 }
 
 /// Increment the refcount of this value
@@ -208,4 +211,14 @@ pub unsafe fn JS_NewCFunction(ctx: *mut JSContext, func: *mut JSCFunction, name:
 /// be safe
 pub unsafe fn JS_NewCFunctionMagic(ctx: *mut JSContext, func: *mut JSCFunctionMagic, name: *const ::std::os::raw::c_char, length: ::std::os::raw::c_int, cproto: JSCFunctionEnum, magic: ::std::os::raw::c_int) -> JSValue {
     JS_NewCFunctionMagic_real(ctx, func, name, length, cproto, magic)
+}
+pub unsafe fn JS_CreateFunctionEntry(name: *const ::std::os::raw::c_char, argc: u8, func: *mut JSCFunction) -> JSCFunctionListEntry{
+    JS_NewFunctionEntry(name, argc, func)
+}
+
+pub unsafe fn JS_AllocFnList(first: JSCFunctionListEntry) -> *mut JSCFunctionListEntry{
+    JS_AllocFnList_real(first)
+}
+pub unsafe fn JS_AppendFnList(buffer: *mut JSCFunctionListEntry, item: JSCFunctionListEntry){
+    JS_AppendFnList_real(buffer, item)
 }

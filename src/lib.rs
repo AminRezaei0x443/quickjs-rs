@@ -377,4 +377,21 @@ impl Context {
     ) -> Result<(), ExecutionError> {
         self.wrapper.add_callback(name, callback)
     }
+
+    /// Init New Js Object
+    pub fn new_object(
+        &self
+    ) -> Result<bindings::OwnedObjectRef, ValueError>{
+        self.wrapper.new_object()
+    }
+
+    /// Add Function to Js Object
+    pub fn add_function<F>(
+        &self,
+        target: bindings::OwnedObjectRef,
+        name: &str,
+        callback: impl Callback<F> + 'static,
+    ) -> Result<(), ExecutionError> {
+        self.wrapper.add_function(target, name, callback)
+    }
 }

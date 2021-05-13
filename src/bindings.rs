@@ -15,6 +15,8 @@ use crate::{
     droppable_value::DroppableValue,
     ContextError, ExecutionError, JsValue, ValueError,
 };
+use std::ptr::{null, null_mut};
+use libquickjs_sys::{JS_AllocFnList, JS_AppendFnList, JS_CreateFunctionEntry};
 
 // JS_TAG_* constants from quickjs.
 // For some reason bindgen does not pick them up.
@@ -586,7 +588,36 @@ where
 
     ((boxed_f, data), Some(trampoline::<F>))
 }
-
+//
+// unsafe fn build_module_closure_trampoline<F>(
+//     closure: F,
+// ) -> ((Box<WrappedCallback>, Box<q::JSValue>), q::JSCFunctionData)
+// where
+//     F: Fn(*mut q::JSContext, *mut q::JSModuleDef) -> c_int + 'static,
+// {
+//     unsafe extern "C" fn trampolineX<F>(
+//         _ctx: *mut q::JSContext,
+//         _modDef: *mut q::JSModuleDef,
+//     ) -> c_int
+//     where
+//         F: Fn(*mut q::JSContext, *mut q::JSModuleDef) -> c_int,
+//     {
+//         let closure_ptr = (*data).u.ptr;
+//         let closure: &mut F = &mut *(closure_ptr as *mut F);
+//         (*closure)(argc, argv)
+//     }
+//
+//     let boxed_f = Box::new(closure);
+//
+//     let data = Box::new(q::JSValue {
+//         u: q::JSValueUnion {
+//             ptr: (&*boxed_f) as *const F as *mut c_void,
+//         },
+//         tag: TAG_NULL,
+//     });
+//
+//     ((boxed_f, data), Some(trampolineX::<F>))
+// }
 /// OwnedValueRef wraps a Javascript value from the quickjs runtime.
 /// It prevents leaks by ensuring that the inner value is deallocated on drop.
 pub struct OwnedValueRef<'a> {
@@ -773,24 +804,24 @@ impl<'a> OwnedObjectRef<'a> {
     }
 }
 
-/*
-type ModuleInit = dyn Fn(*mut q::JSContext, *mut q::JSModuleDef);
+//
+// type ModuleInit = dyn Fn(*mut q::JSContext, *mut q::JSModuleDef);
+//
+// thread_local! {
+//     static NATIVE_MODULE_INIT: RefCell<Option<Box<ModuleInit>>> = RefCell::new(None);
+// }
+//
+// unsafe extern "C" fn native_module_init(
+//     ctx: *mut q::JSContext,
+//     m: *mut q::JSModuleDef,
+// ) -> ::std::os::raw::c_int {
+//     NATIVE_MODULE_INIT.with(|init| {
+//         let init = init.replace(None).unwrap();
+//         init(ctx, m);
+//     });
+//     0
+// }
 
-thread_local! {
-    static NATIVE_MODULE_INIT: RefCell<Option<Box<ModuleInit>>> = RefCell::new(None);
-}
-
-unsafe extern "C" fn native_module_init(
-    ctx: *mut q::JSContext,
-    m: *mut q::JSModuleDef,
-) -> ::std::os::raw::c_int {
-    NATIVE_MODULE_INIT.with(|init| {
-        let init = init.replace(None).unwrap();
-        init(ctx, m);
-    });
-    0
-}
-*/
 
 /// Wraps a quickjs context.
 ///
@@ -1185,6 +1216,44 @@ impl ContextWrapper {
         Ok(cfunc)
     }
 
+    // pub fn createModuleInitFunc<'a, F>(
+    //     &'a self,
+    //     callback: impl Callback<F> + 'static,
+    // ) -> Result<q::JSValue, ExecutionError> {
+    //     let wrapper = move |ctx: *mut q::JSContext, moduleDef: *mut q::JSModuleDef| -> i32{
+    //         match Self::exec_callback(context, argc, argv, &callback) {
+    //             Ok(value) => value,
+    //             // TODO: better error reporting.
+    //             Err(e) => {
+    //                 let js_exception_value = match e {
+    //                     ExecutionError::Exception(e) => e,
+    //                     other => other.to_string().into(),
+    //                 };
+    //                 let js_exception = serialize_value(context, js_exception_value).unwrap();
+    //                 unsafe {
+    //                     q::JS_Throw(context, js_exception);
+    //                 }
+    //
+    //                 q::JSValue {
+    //                     u: q::JSValueUnion { int32: 0 },
+    //                     tag: TAG_EXCEPTION,
+    //                 }
+    //             }
+    //         }
+    //     };
+    //
+    //     let (pair, trampoline) = unsafe { build_closure_trampoline(wrapper) };
+    //     let data = (&*pair.1) as *const q::JSValue as *mut q::JSValue;
+    //     self.callbacks.lock().unwrap().push(pair);
+    //
+    //     let cfunc =
+    //         unsafe { q::JS_NewCFunctionData(self.context, trampoline, argcount, 0, 1, data) };
+    //     if cfunc.tag != TAG_OBJECT {
+    //         return Err(ExecutionError::Internal("Could not create callback".into()));
+    //     }
+    //
+    //     Ok(cfunc)
+    // }
     pub fn add_callback<'a, F>(
         &'a self,
         name: &str,
@@ -1197,4 +1266,96 @@ impl ContextWrapper {
         }
         Ok(())
     }
+
+    pub fn new_object<'a>(
+        &'a self
+    ) -> Result<OwnedObjectRef<'a>, ValueError>{
+        let obj = unsafe{ q::JS_NewObject(self.context) };
+        let res = OwnedValueRef::new(self, obj);
+        let or = OwnedObjectRef::new(res)?;
+        return Ok(or);
+    }
+
+    pub fn add_function<'a, F>(
+        &'a self,
+        target: OwnedObjectRef<'a>,
+        name: &str,
+        callback: impl Callback<F> + 'static,
+    ) -> Result<(), ExecutionError> {
+        let cfunc = self.create_callback(callback)?;
+        unsafe {
+            target.set_property_raw(name, cfunc)?;
+        }
+        Ok(())
+    }
+    //
+    // pub fn just_testModule<'a>(
+    //     &'a self
+    // ) -> Result<(), ExecutionError>{
+    //     // JSContext *ctx, JSValueConst this_val, int argc, JSValueConst *argv
+    //
+    //     unsafe{
+    //         extern fn Cb(ctx: *mut q::JSContext, _this: q::JSValue,
+    //         argc: c_int,
+    //         argv: *mut q::JSValue) -> q::JSValue{
+    //             return JsValue(2);
+    //         }
+    //         let x = Some(Cb);
+    //         let y = Box::new(x);
+    //         let my_speed_ptr: *mut Option<unsafe fn(ctx: *mut q::JSContext, _this: q::JSValue,
+    //         argc: c_int,
+    //         argv: *mut q::JSValue) -> q::JSValue>= &mut *y;
+    //         let entry = JS_CreateFunctionEntry(make_cstring("tF")?.as_ptr(), 1,Box::into_raw(y));
+    //         let l = JS_AllocFnList(entry);
+    //         extern fn Init(ctx: *mut q::JSContext, m: *mut q::JSModuleDef) -> c_int{
+    //             return q::JS_SetModuleExportList(ctx, m, l, 1);
+    //         }
+    //         let t = make_cstring("uuu")?;
+    //         q::JS_NewCModule(self.context, t.as_ptr(), Some(Init));
+    //         Ok(())
+    //     }
+    // }
+    // pub fn add_module<'a>(
+    //     &'a self, name: &str,
+    //     callbacks: &[impl Callback<F> + 'static],
+    //     names: Box<[&str]>,
+    //     argCounts: &[u8],
+    //     initFn: Box<dyn Fn(*mut JSCFunctionListEntry) -> (dyn Fn(*mut q::JSContext, *mut q::JSModuleDef) -> c_int)>,
+    // ) -> Result<*mut q::JSModuleDef, ExecutionError>{
+    //     if callbacks.len() == 0{
+    //         Err("Fuck u")
+    //     }
+    //     let mut fnList: *mut JSCFunctionListEntry = std::ptr::null_mut();
+    //     let mut counter = 0;
+    //     for c in callbacks.iter(){
+    //         let cFn: JsValue = self.create_callback(c)?;
+    //         let cXname = make_cstring(names.get(counter))?;
+    //         let fnEntry = unsafe { JS_CreateFunctionEntry(cXname.as_ptr(), argCounts[counter], cFn ) };
+    //         if fnList.is_null(){
+    //             fnList = unsafe{
+    //                 JS_AllocFnList(fnEntry)
+    //             }
+    //         }else{
+    //             unsafe{
+    //                 JS_AppendFnList(fnList, fnEntry)
+    //             }
+    //         }
+    //         counter += 1;
+    //     }
+    //     let cname = make_cstring(name)?;
+    //     let cmod = unsafe{
+    //         q::JS_NewCModule(self.context, cname.as_ptr(), initFn(fnList))
+    //     };
+    //     unsafe {
+    //         q::JS_AddModuleExportList(self.context, cmod, fnList, callbacks.len() as i32);
+    //     }
+    //
+    //     // unsafe{
+    //     //     q::JS_NewCModule(self.context, cname, )
+    //     // }
+    //     // unsafe{
+    //     //     native_module_init(self.context, null_mut());
+    //     // }
+    //     Ok(cmod)
+    // }
 }

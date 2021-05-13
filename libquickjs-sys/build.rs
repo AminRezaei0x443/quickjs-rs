@@ -64,6 +64,12 @@ fn main() {
     )
     .expect("Could not copy static-functions.c");
 
+    std::fs::copy(
+        embed_path.join("buf.h"),
+        code_dir.join("buf.h"),
+    )
+    .expect("Could not copy buf.h");
+
     eprintln!("Compiling quickjs...");
     let quickjs_version =
         std::fs::read_to_string(code_dir.join("VERSION")).expect("failed to read quickjs version");

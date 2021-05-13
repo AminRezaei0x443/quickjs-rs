@@ -1,4 +1,6 @@
 #include "quickjs.h"
+#include <stdlib.h>
+#include "buf.h"
 
 // These are static inline functions in quickjs.h so bindgen does not pick 
 // them up.
@@ -107,4 +109,19 @@ JSValue JS_NewCFunction_real(JSContext *ctx, JSCFunction *func, const char *name
 
 JSValue JS_NewCFunctionMagic_real(JSContext *ctx, JSCFunctionMagic *func, const char *name, int length, JSCFunctionEnum cproto, int magic) {
     return JS_NewCFunctionMagic(ctx, func, name, length, cproto, magic);
+}
+
+JSCFunctionListEntry JS_NewFunctionEntry(const char *name, uint8_t argc, JSCFunction* fn){
+    JSCFunctionListEntry x = JS_CFUNC_DEF(name, argc, fn);
+    return x;
+}
+
+JSCFunctionListEntry* JS_AllocFnList_real(JSCFunctionListEntry entry){
+    JSCFunctionListEntry* buffer = NULL;
+    buf_push(buffer, entry);
+    return buffer;
+}
+
+void JS_AppendFnList_real(JSCFunctionListEntry* buffer, JSCFunctionListEntry entry){
+    buf_push(buffer, entry);
 }
