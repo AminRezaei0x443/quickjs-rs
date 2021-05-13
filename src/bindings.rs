@@ -1297,7 +1297,7 @@ impl ContextWrapper {
     ) -> Result<(), ExecutionError> {
         let global = self.global()?;
         unsafe {
-            let x = target.into_value();
+            let x = (*target).into_value();
             let z = x.into_inner();
             global.set_property_raw(name, z)?;
         }
