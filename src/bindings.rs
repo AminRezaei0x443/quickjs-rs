@@ -728,7 +728,7 @@ impl<'a> OwnedObjectRef<'a> {
         }
     }
 
-    fn into_value(self) -> OwnedValueRef<'a> {
+    pub fn into_value(self) -> OwnedValueRef<'a> {
         self.value
     }
 
