@@ -388,7 +388,7 @@ impl Context {
     /// Add Function to Js Object
     pub fn add_function<F>(
         &self,
-        target: bindings::OwnedObjectRef,
+        target: &bindings::OwnedObjectRef,
         name: &str,
         callback: impl Callback<F> + 'static,
     ) -> Result<(), ExecutionError> {
