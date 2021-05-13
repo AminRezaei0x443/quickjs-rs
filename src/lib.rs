@@ -398,7 +398,7 @@ impl Context {
     pub fn addGlobalObject(
         &self,
         name: &str,
-        target: &bindings::OwnedObjectRef
+        target: bindings::OwnedObjectRef
     ) -> Result<(), ExecutionError> {
         self.wrapper.addGlobalObject(name, target)
     }
