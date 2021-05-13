@@ -1278,7 +1278,7 @@ impl ContextWrapper {
 
     pub fn add_function<'a, F>(
         &'a self,
-        target: OwnedObjectRef<'a>,
+        target: &OwnedObjectRef<'a>,
         name: &str,
         callback: impl Callback<F> + 'static,
     ) -> Result<(), ExecutionError> {
