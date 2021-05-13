@@ -394,4 +394,12 @@ impl Context {
     ) -> Result<(), ExecutionError> {
         self.wrapper.add_function(target, name, callback)
     }
+    /// Add Function to Js Object
+    pub fn addGlobalObject(
+        &self,
+        name: &str,
+        target: &bindings::OwnedObjectRef
+    ) -> Result<(), ExecutionError> {
+        self.wrapper.addGlobalObject(name, target)
+    }
 }

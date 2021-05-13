@@ -1288,6 +1288,20 @@ impl ContextWrapper {
         }
         Ok(())
     }
+
+
+    pub fn addGlobalObject<'a>(
+        &'a self,
+        name: &str,
+        target: &OwnedObjectRef<'a>
+    ) -> Result<(), ExecutionError> {
+        let global = self.global()?;
+        unsafe {
+            global.set_property_raw(name, target.into_value().into_inner())?;
+        }
+        Ok(())
+    }
+
     //
     // pub fn just_testModule<'a>(
     //     &'a self
